@@ -11,6 +11,8 @@
 #define TRIGGER 5
 #define ECHO    4
 
+#define IR      16
+
 #define BUTTON A0
 #define LED_1 14
 #define LED_2 12
@@ -21,7 +23,7 @@ const int leds[] = {LED_1,LED_2,LED_3,LED_4};
 const int SETUP_BUTTON = 100;
 
 const int MAX_VOTE_WAIT (10 * 1000);
-const int COOL_DOWN_WAIT (2 * 1000);
+const int COOL_DOWN_WAIT (1 * 1000);
 
 bool shouldSaveConfig = false;
 
@@ -41,6 +43,9 @@ void setup() {
   // distance sensor
   pinMode(TRIGGER, OUTPUT);
   pinMode(ECHO, INPUT);  
+
+  // IR sensor
+  pinMode(IR, INPUT);
   
   // button config
   pinMode(BUTTON, INPUT);
@@ -144,6 +149,10 @@ bool checkDistance(int minDistance) {
   return distance < minDistance;
 }
 
+bool checkMotion() {
+  return digitalRead(IR) == HIGH;
+}
+
 state currentState = waitForPerson;
 long timeout = 0;
 
@@ -174,7 +183,7 @@ bool postVote(int button) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-AIO-Key", api_key);
   int httpCode = http.POST("{ \"value\": \" " + String(button) + " \"} ");
-  //http.writeToStream(&Serial);
+  http.writeToStream(&Serial);
   http.end();
   return httpCode == 200;
 }
@@ -195,7 +204,7 @@ void loop() {
   switch (currentState) {
     case waitForPerson:
       allLights(false);
-      if (checkDistance(30)) {
+      if (checkMotion()) {
         readyToVoteLights();
         currentState = vote;
         timeout = millis() + MAX_VOTE_WAIT;
@@ -206,7 +215,7 @@ void loop() {
     case vote:
       if (millis() >= timeout) {
         currentState = waitForPerson;
-        postEvent("passing");
+//        postEvent("passing");
       }
       button = readButton();
       if (button >= 0 && button <= 4) {
