@@ -6,6 +6,8 @@ Moodbox allows you can measure the happiness of your employees.
 
 ### Moodbox
 
+![Moodbox](docs/moodbox-v1.jpg)
+
 #### Parts
 
 - [ESP8266 NodeMcu](https://www.aliexpress.com/item/V3-Wireless-module-NodeMcu-4M-bytes-Lua-WIFI-Internet-of-Things-development-board-based-ESP8266-esp/32647542733.html)
