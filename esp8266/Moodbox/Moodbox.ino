@@ -33,12 +33,20 @@ enum state {
   coolDown
 };
 
-char api_key[40] = "YOUR API KEY";
- 
+state currentState = vote;
+long timeout = 0;
+
+
+char api_key[40];
+
+HTTPClient http;
+
 void setup() {
   Serial.begin (115200);
 
   loadConfiguration();
+
+  http.setReuse(true);
   
   // distance sensor
   pinMode(TRIGGER, OUTPUT);
@@ -133,6 +141,14 @@ void achknoledgeButton(int button) {
  }
 }
 
+void onButton(int button) {
+  digitalWrite(leds[button], HIGH);
+}
+
+void offButton(int button) {
+  digitalWrite(leds[button], LOW);
+}
+
 bool checkDistance(int minDistance) {
 
   long duration, distance;
@@ -153,24 +169,21 @@ bool checkMotion() {
   return digitalRead(IR) == HIGH;
 }
 
-state currentState = waitForPerson;
-long timeout = 0;
-
 bool isNear(int v, int level) {
   return (v > level - 10 && v < level + 10);
 }
 
 int readButton() {
   int value = analogRead(BUTTON);
-  if (isNear(value, 677)) {
+  if (isNear(value, 738)) {
     return 3;
-  } else if (isNear(value, 818)) {
+  } else if (isNear(value, 890)) {
     return 2;
-  } else if (isNear(value, 909)) {
+  } else if (isNear(value, 998)) {
     return 1;
-  } else if (isNear(value, 958)) {
+  } else if (isNear(value, 1024)) {
     return 0;
-  } else if (isNear(value, 928)) {
+  } else if (isNear(value, 945)) {
     return 100;
   } else {
     return -2;
@@ -178,18 +191,23 @@ int readButton() {
 }
 
 bool postVote(int button) {
-  HTTPClient http;
+  onButton(button);
+  Serial.println("# Bulidng request ..");
   http.begin("https://io.adafruit.com/api/v2/felix41382/feeds/votes/data","AD4B64B36740B5FC0E519BBD25E97F88B62AA35B");
+  http.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36.");
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-AIO-Key", api_key);
+  Serial.println("# Sending ..");
   int httpCode = http.POST("{ \"value\": \" " + String(button) + " \"} ");
-  http.writeToStream(&Serial);
+  Serial.println("Done!");
   http.end();
+  Serial.println("Returning ...");
+  offButton(button);
   return httpCode == 200;
+    //http.writeToStream(&Serial);
 }
 
 bool postEvent(String type) {
-  HTTPClient http;
   http.begin("https://io.adafruit.com/api/v2/felix41382/feeds/events/data","AD4B64B36740B5FC0E519BBD25E97F88B62AA35B");
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-AIO-Key", api_key);
@@ -206,6 +224,7 @@ void loop() {
       allLights(false);
       if (checkMotion()) {
         readyToVoteLights();
+        Serial.println("## ready to vote");
         currentState = vote;
         timeout = millis() + MAX_VOTE_WAIT;
       }
@@ -213,41 +232,42 @@ void loop() {
       break;
       
     case vote:
+      
       if (millis() >= timeout) {
         currentState = waitForPerson;
-//        postEvent("passing");
       }
       button = readButton();
       if (button >= 0 && button <= 4) {
+        Serial.println("## button pressed ");
         allLights(false);
         achknoledgeButton(button);
         if (!postVote(button)) {
           errorBlink();
         }
-        if (!postEvent("voted")) {
-          errorBlink();
-        }
         currentState = coolDown;
+        Serial.println("## waiting for cool down");
         timeout = millis() + COOL_DOWN_WAIT;
       } else if (button == SETUP_BUTTON) {
-        resetBox();
+        setupBox();
       }
       delay(100);
       break;
       
     case coolDown:
       if (millis() >= timeout) {
+        Serial.println("## cool down done");
         currentState = waitForPerson;
       }
       break;
   }
 }
 
-void resetBox() {
+void setupBox() {
   WiFiManager wifiManager;
   WiFiManagerParameter api_key_param("API_KEY", "api_key", "", 40);
   wifiManager.addParameter(&api_key_param); 
   wifiManager.setSaveConfigCallback(saveConfigCallback);
+  wifiManager.setMinimumSignalQuality(50);
   
   if (!wifiManager.startConfigPortal("Moodbox Configuration")) {
     delay(3000);
